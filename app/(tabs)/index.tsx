@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback, memo } from '
 import { View, ScrollView, StyleSheet, TextInput as RNTextInput, Alert, Pressable } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Swipeable } from 'react-native-gesture-handler';
-import { Text, Card, Button, IconButton, TextInput, Portal, Dialog } from 'react-native-paper';
+import { Text, Card, Button, IconButton, TextInput, Portal, Dialog, Switch } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +25,13 @@ const getExerciseIcon = (type: ExerciseType, customExercises: { id: string; icon
   const custom = customExercises.find((e) => e.id === type);
   if (custom) return custom.icon;
   return (EXERCISE_ICONS as Record<string, string>)[type] || 'dumbbell';
+};
+
+const isExerciseDurationBased = (
+  type: ExerciseType,
+  customExercises: { id: string; isDuration: boolean }[]
+): boolean => {
+  return customExercises.find((e) => e.id === type)?.isDuration || isDurationBasedExercise(type);
 };
 
 const formatDuration = (seconds: number) => {
@@ -233,9 +240,10 @@ interface ExerciseCardProps {
   exercise: Exercise;
   exerciseColor: string;
   exerciseIcon: string;
+  isDuration: boolean;
 }
 
-const ExerciseCard = memo<ExerciseCardProps>(({ exercise, exerciseColor, exerciseIcon }) => {
+const ExerciseCard = memo<ExerciseCardProps>(({ exercise, exerciseColor, exerciseIcon, isDuration }) => {
   const removeExercise = useWorkoutStore((s) => s.removeExercise);
   const addSet = useWorkoutStore((s) => s.addSet);
   const removeSet = useWorkoutStore((s) => s.removeSet);
@@ -270,7 +278,7 @@ const ExerciseCard = memo<ExerciseCardProps>(({ exercise, exerciseColor, exercis
         right={renderRight}
       />
       <Card.Content>
-        {isDurationBasedExercise(exercise.type) ? (
+        {isDuration ? (
           <View style={styles.durationContainer}>
             <View style={styles.durationButtons}>
               {DURATION_PRESETS.map((mins) => (
@@ -367,7 +375,7 @@ const ExerciseSelectDialog = memo<ExerciseSelectDialogProps>(({ visible, onDismi
   const showBuiltinExercise = useWorkoutStore((s) => s.showBuiltinExercise);
   const removeCustomExercise = useWorkoutStore((s) => s.removeCustomExercise);
 
-  const allBuiltinExerciseTypes: BuiltinExerciseType[] = ['pushup', 'squat', 'pullup', 'bodypump', 'bodycombat', 'leapfight'];
+  const allBuiltinExerciseTypes: BuiltinExerciseType[] = ['pushup', 'squat', 'pullup', 'bodypump', 'bodycombat', 'leapfight', 'swimming'];
   const exerciseTypes = useMemo(
     () => allBuiltinExerciseTypes.filter((t) => !hiddenBuiltinExercises.includes(t)),
     [hiddenBuiltinExercises]
@@ -487,13 +495,14 @@ interface CustomExerciseDialogProps {
   onDismiss: () => void;
 }
 
-const ICON_OPTIONS = ['dumbbell', 'arm-flex', 'human', 'human-handsup', 'run', 'boxing-glove', 'karate', 'weight-lifter', 'yoga', 'bike'];
-const COLOR_OPTIONS = ['#3b82f6', '#22c55e', '#f59e0b', '#f472b6', '#a855f7', '#ef4444', '#14b8a6', '#6366f1', '#ec4899', '#06b6d4'];
+const ICON_OPTIONS = ['dumbbell', 'arm-flex', 'human', 'human-handsup', 'run', 'boxing-glove', 'karate', 'swim', 'weight-lifter', 'yoga', 'bike'];
+const COLOR_OPTIONS = ['#3b82f6', '#22c55e', '#f59e0b', '#f472b6', '#a855f7', '#ef4444', '#f97316', '#6366f1', '#ec4899', '#06b6d4'];
 
 const CustomExerciseDialog = memo<CustomExerciseDialogProps>(({ visible, onDismiss }) => {
   const addCustomExercise = useWorkoutStore((s) => s.addCustomExercise);
   const [customExerciseIcon, setCustomExerciseIcon] = useState('dumbbell');
   const [customExerciseColor, setCustomExerciseColor] = useState('#3b82f6');
+  const [customExerciseIsDuration, setCustomExerciseIsDuration] = useState(false);
   const [customExerciseNameEmpty, setCustomExerciseNameEmpty] = useState(true);
   const customExerciseNameRef = useRef('');
 
@@ -505,14 +514,15 @@ const CustomExerciseDialog = memo<CustomExerciseDialogProps>(({ visible, onDismi
       icon: customExerciseIcon,
       color: customExerciseColor,
       hasWeight: true,
-      isDuration: false,
+      isDuration: customExerciseIsDuration,
     });
     customExerciseNameRef.current = '';
     setCustomExerciseNameEmpty(true);
     setCustomExerciseIcon('dumbbell');
     setCustomExerciseColor('#3b82f6');
+    setCustomExerciseIsDuration(false);
     onDismiss();
-  }, [customExerciseIcon, customExerciseColor, addCustomExercise, onDismiss]);
+  }, [customExerciseIcon, customExerciseColor, customExerciseIsDuration, addCustomExercise, onDismiss]);
 
   const handleNameChange = useCallback((text: string) => {
     customExerciseNameRef.current = text;
@@ -561,6 +571,17 @@ const CustomExerciseDialog = memo<CustomExerciseDialogProps>(({ visible, onDismi
             />
           ))}
         </ScrollView>
+        <View style={styles.customExerciseSwitchRow}>
+          <View style={styles.customExerciseSwitchText}>
+            <Text style={styles.customExerciseSwitchTitle}>時間で記録</Text>
+            <Text style={styles.customExerciseSwitchDescription}>30/45/60分の選択で記録します</Text>
+          </View>
+          <Switch
+            value={customExerciseIsDuration}
+            onValueChange={setCustomExerciseIsDuration}
+            color={darkTheme.colors.primary}
+          />
+        </View>
       </Dialog.Content>
       <Dialog.Actions>
         <Button onPress={onDismiss}>キャンセル</Button>
@@ -605,7 +626,7 @@ const TemplateSelectDialog = memo<TemplateDialogProps>(({ visible, onDismiss }) 
   const renameRef = useRef('');
   const saveNameRef = useRef('');
 
-  const allBuiltinTypes: BuiltinExerciseType[] = ['pushup', 'squat', 'pullup', 'bodypump', 'bodycombat', 'leapfight'];
+  const allBuiltinTypes: BuiltinExerciseType[] = ['pushup', 'squat', 'pullup', 'bodypump', 'bodycombat', 'leapfight', 'swimming'];
   const availableTypes = useMemo(
     () => allBuiltinTypes.filter((t) => !hiddenBuiltinExercises.includes(t)),
     [hiddenBuiltinExercises]
@@ -1020,7 +1041,8 @@ export default function HomeScreen() {
   const renderExerciseItem = useCallback(({ item }: { item: Exercise }) => {
     const color = getExerciseColor(item.type, customExercises);
     const icon = getExerciseIcon(item.type, customExercises);
-    return <ExerciseCard exercise={item} exerciseColor={color} exerciseIcon={icon} />;
+    const isDuration = isExerciseDurationBased(item.type, customExercises);
+    return <ExerciseCard exercise={item} exerciseColor={color} exerciseIcon={icon} isDuration={isDuration} />;
   }, [customExercises]);
 
   const keyExtractor = useCallback((item: Exercise) => item.id, []);
@@ -1417,6 +1439,27 @@ const styles = StyleSheet.create({
   },
   colorScroll: {
     marginBottom: 8,
+  },
+  customExerciseSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginTop: 8,
+    paddingVertical: 10,
+  },
+  customExerciseSwitchText: {
+    flex: 1,
+  },
+  customExerciseSwitchTitle: {
+    color: '#F0F0F5',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  customExerciseSwitchDescription: {
+    color: '#6B7280',
+    fontSize: 12,
+    marginTop: 2,
   },
   bottomButtons: {
     position: 'absolute',

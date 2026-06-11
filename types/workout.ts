@@ -1,4 +1,4 @@
-export type BuiltinExerciseType = 'pushup' | 'squat' | 'pullup' | 'cardio' | 'bodypump' | 'bodycombat' | 'leapfight';
+export type BuiltinExerciseType = 'pushup' | 'squat' | 'pullup' | 'cardio' | 'bodypump' | 'bodycombat' | 'leapfight' | 'swimming';
 export type ExerciseType = BuiltinExerciseType | string;
 
 export interface SetEntry {
@@ -85,6 +85,7 @@ export const BUILTIN_EXERCISE_NAMES: Record<BuiltinExerciseType, string> = {
   bodypump: 'BODYPUMP',
   bodycombat: 'BODYCOMBAT',
   leapfight: 'LEAP FIGHT',
+  swimming: '水泳',
 };
 
 // 後方互換のためにエイリアスを残す
@@ -98,13 +99,14 @@ export const BUILTIN_EXERCISE_ICONS: Record<BuiltinExerciseType, string> = {
   bodypump: 'dumbbell',
   bodycombat: 'boxing-glove',
   leapfight: 'karate',
+  swimming: 'swim',
 };
 
 export const EXERCISE_ICONS = BUILTIN_EXERCISE_ICONS as Record<string, string>;
 
 // 時間ベースの種目かどうか
 export const isDurationBasedExercise = (type: ExerciseType): boolean => {
-  return ['cardio', 'bodypump', 'bodycombat', 'leapfight'].includes(type);
+  return ['cardio', 'bodypump', 'bodycombat', 'leapfight', 'swimming'].includes(type);
 };
 
 // プリセット時間オプション（分）
@@ -124,4 +126,3 @@ export const AVAILABLE_COLORS = [
   '#ef4444', '#14b8a6', '#6366f1', '#ec4899', '#06b6d4',
   '#f97316', '#84cc16', '#8b5cf6', '#e11d48', '#0ea5e9',
 ];
-

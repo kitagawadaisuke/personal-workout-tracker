@@ -43,7 +43,7 @@ const statStyles = StyleSheet.create({
 });
 
 export default function SettingsScreen() {
-  const { getAllWorkouts } = useWorkoutStore();
+  const { getAllWorkouts, customExercises } = useWorkoutStore();
   const [exportDialogVisible, setExportDialogVisible] = useState(false);
   const [exportRange, setExportRange] = useState<'all' | 'week' | 'month' | 'day'>('all');
   const [isExporting, setIsExporting] = useState(false);
@@ -116,6 +116,10 @@ export default function SettingsScreen() {
   };
 
   const calcStats = (targetWorkouts: typeof workouts) => {
+    const isDurationExercise = (type: string) => {
+      return customExercises.find((e) => e.id === type)?.isDuration || isDurationBasedExercise(type);
+    };
+
     return {
       trainingDays: targetWorkouts.length,
       totalSets: targetWorkouts.reduce(
@@ -128,7 +132,7 @@ export default function SettingsScreen() {
       ),
       totalExerciseDurationMinutes: targetWorkouts.reduce(
         (sum, w) => sum + w.exercises
-          .filter((e) => isDurationBasedExercise(e.type))
+          .filter((e) => isDurationExercise(e.type))
           .reduce((s, e) => s + (e.durationMinutes || 0), 0),
         0
       ),
@@ -139,14 +143,14 @@ export default function SettingsScreen() {
     const currentYear = new Date().getFullYear();
     const yearWorkouts = workouts.filter((w) => w.date.startsWith(String(currentYear)));
     return calcStats(yearWorkouts);
-  }, [workouts]);
+  }, [workouts, customExercises]);
 
   const monthlyStats = useMemo(() => {
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const monthWorkouts = workouts.filter((w) => w.date.startsWith(currentMonth));
     return calcStats(monthWorkouts);
-  }, [workouts]);
+  }, [workouts, customExercises]);
 
   return (
     <View style={styles.container}>
