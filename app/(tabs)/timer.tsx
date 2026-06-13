@@ -67,7 +67,9 @@ export default function TimerScreen() {
     } else {
       deactivateKeepAwake();
     }
-    return () => deactivateKeepAwake();
+    return () => {
+      void deactivateKeepAwake();
+    };
   }, [isRunning, isMetronomeRunning, isCountingDown]);
 
   useEffect(() => {

@@ -472,18 +472,20 @@ const ExerciseSelectDialog = memo<ExerciseSelectDialogProps>(({ visible, onDismi
               ))}
             </View>
           ) : null}
-          <Button
-            mode="contained"
-            onPress={handleOpenCustom}
-            style={styles.addCustomButton}
-            icon="plus"
-          >
-            カスタム種目を追加
-          </Button>
         </ScrollView>
       </Dialog.Content>
-      <Dialog.Actions>
-        <Button onPress={onDismiss}>キャンセル</Button>
+      <Dialog.Actions style={styles.exerciseDialogActions}>
+        <Button
+          mode="contained"
+          onPress={handleOpenCustom}
+          style={styles.addCustomButton}
+          icon="plus"
+        >
+          カスタム種目を追加
+        </Button>
+        <Button onPress={onDismiss} style={styles.exerciseDialogCancelButton}>
+          キャンセル
+        </Button>
       </Dialog.Actions>
     </Dialog>
   );
@@ -1411,11 +1413,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingVertical: 4,
   },
+  exerciseDialogActions: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
   addCustomButton: {
-    marginTop: 8,
-    marginHorizontal: 16,
     backgroundColor: '#6366f1',
     borderRadius: 16,
+  },
+  exerciseDialogCancelButton: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
   },
   customExerciseNativeInput: {
     backgroundColor: '#252530',
