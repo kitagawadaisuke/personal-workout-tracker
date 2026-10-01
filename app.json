@@ -2,7 +2,7 @@
   "expo": {
     "name": "SlowRep",
     "slug": "workout-tracker",
-    "version": "1.0.3",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,19 +10,24 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a2e"
+      "backgroundColor": "#101815"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.d.workouttracker",
+      "entitlements": {
+        "com.apple.developer.healthkit": true
+      },
       "infoPlist": {
+        "NSHealthShareUsageDescription": "履歴で月間の合計歩数・1日平均・日別の推移を表示するため、ヘルスケアの歩数を読み取ります。歩数は外部へ送信しません。",
+        "NSHealthUpdateUsageDescription": "SlowRepはヘルスケアのデータを書き換えません。歩数の読み取りだけを使用します。",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a1a2e"
+        "backgroundColor": "#101815"
       }
     },
     "web": {

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Vibration } from 'react-native';
+import { View, ScrollView, StyleSheet, Vibration } from 'react-native';
 import { Text, Button, SegmentedButtons, Card, IconButton } from 'react-native-paper';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
-import { deactivateKeepAwake, activateKeepAwake } from 'expo-keep-awake';
+import { deactivateKeepAwake, activateKeepAwakeAsync, isAvailableAsync } from 'expo-keep-awake';
 import { useWorkoutStore } from '@/stores/workoutStore';
 import { darkTheme } from '@/constants/theme';
 import { FeedbackMode } from '@/types/workout';
@@ -61,16 +61,22 @@ export default function TimerScreen() {
   }, [beats]);
 
   // タイマーまたはメトロノーム動作中はスリープ防止
+  const keepScreenAwake = isRunning || isMetronomeRunning || isCountingDown;
   useEffect(() => {
-    if (isRunning || isMetronomeRunning || isCountingDown) {
-      activateKeepAwake();
-    } else {
-      deactivateKeepAwake();
-    }
+    if (!keepScreenAwake) return;
+    // Separate tags prevent a delayed release from stopping a newer timer's lock.
+    const tag = `slowrep-timer-${Date.now()}-${Math.random()}`;
+    const activation = isAvailableAsync().then(async (available) => {
+      if (!available) return false;
+      await activateKeepAwakeAsync(tag);
+      return true;
+    }).catch(() => false);
     return () => {
-      void deactivateKeepAwake();
+      void activation.then((activated) => {
+        if (activated) return deactivateKeepAwake(tag);
+      }).catch(() => { /* The OS may have already released the lock. */ });
     };
-  }, [isRunning, isMetronomeRunning, isCountingDown]);
+  }, [keepScreenAwake]);
 
   useEffect(() => {
     setupAudio();
@@ -392,15 +398,17 @@ export default function TimerScreen() {
 
   return (
     <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <SegmentedButtons
         value={mode}
         onValueChange={(value) => setMode(value as 'interval' | 'metronome')}
         buttons={[
-          { value: 'interval', label: 'インターバル' },
-          { value: 'metronome', label: 'メトロノーム' },
+          { value: 'interval', label: '休憩タイマー', icon: 'timer-outline' },
+          { value: 'metronome', label: 'メトロノーム', icon: 'metronome' },
         ]}
         style={styles.segmentedButtons}
       />
+      <Text style={styles.modeDescription}>{mode === 'interval' ? 'セット間の休憩を、自分のペースで。' : '一定のリズムで、フォームに集中。'}</Text>
 
       <Text style={styles.workoutDurationText}>
         筋トレ時間 {formatTime(getSelectedWorkoutDurationSeconds())}
@@ -421,23 +429,24 @@ export default function TimerScreen() {
         {mode === 'interval' ? (
           <Card style={styles.timerCard}>
             <View style={styles.timerContent}>
-              <Text style={styles.timerDisplay}>{formatTime(remainingTime)}</Text>
+              <Text style={styles.timerDisplay} numberOfLines={1} adjustsFontSizeToFit>{formatTime(remainingTime)}</Text>
               <Text style={styles.timerLabel}>
                 {isRunning
                   ? isCountingDown && remainingTime <= 10
                     ? `メトロノーム準備 ${remainingTime}`
                     : '残り時間'
-                  : '設定時間'}
+                  : remainingTime < intervalTime ? '一時停止中' : '設定時間'}
               </Text>
               {metronomeLink && !isRunning && (
-                <Text style={styles.metronomeLinkHint}>🎵 残り10秒でメトロノーム開始</Text>
+                <Text style={styles.metronomeLinkHint}>残り10秒で準備 → 休憩終了後に開始</Text>
               )}
               <View style={styles.recordButtonWithLabel}>
                 <IconButton
                   icon="bookmark-outline"
+                  accessibilityLabel="休憩時間を記録"
                   mode="contained-tonal"
-                  iconColor="#94a3b8"
-                  containerColor="#334155"
+                  iconColor={darkTheme.colors.onSurfaceVariant}
+                  containerColor={darkTheme.colors.surfaceVariant}
                   onPress={recordIntervalTime}
                   size={20}
                 />
@@ -474,9 +483,10 @@ export default function TimerScreen() {
                   <View style={styles.recordButtonWithLabel}>
                     <IconButton
                       icon="bookmark-outline"
+                      accessibilityLabel="メトロノームを記録"
                       mode="contained-tonal"
-                      iconColor="#94a3b8"
-                      containerColor="#334155"
+                      iconColor={darkTheme.colors.onSurfaceVariant}
+                      containerColor={darkTheme.colors.surfaceVariant}
                       onPress={recordMetronome}
                       size={20}
                     />
@@ -553,19 +563,25 @@ export default function TimerScreen() {
         <View style={styles.adjustControls}>
           <IconButton
             icon="minus"
+            accessibilityLabel={mode === 'interval' ? '休憩時間を10秒減らす' : 'テンポを1 BPM下げる'}
             mode="contained"
             onPress={mode === 'interval' ? () => adjustIntervalTime(-10) : () => adjustBpm(-1)}
             size={28}
           />
+          <Text style={styles.adjustLabel}>{mode === 'interval' ? '10秒ずつ調整' : '1 BPMずつ調整'}</Text>
           <IconButton
             icon="plus"
+            accessibilityLabel={mode === 'interval' ? '休憩時間を10秒増やす' : 'テンポを1 BPM上げる'}
             mode="contained"
             onPress={mode === 'interval' ? () => adjustIntervalTime(10) : () => adjustBpm(1)}
             size={28}
           />
         </View>
 
-        {/* スタートボタン（常に最下部・固定高さ） */}
+
+      </View>
+    </ScrollView>
+        {/* 開始・停止はスクロール位置に関係なく操作できる */}
         <View style={styles.buttonRow}>
           {mode === 'interval' ? (
             isRunning ? (
@@ -622,7 +638,6 @@ export default function TimerScreen() {
             </Button>
           )}
         </View>
-      </View>
     </View>
   );
 }
@@ -746,8 +761,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: darkTheme.colors.background,
-    padding: 16,
   },
+  scrollContent: { padding: 20, paddingBottom: 32, width: '100%', maxWidth: 600, alignSelf: 'center' },
+  modeDescription: { color: darkTheme.colors.onSurfaceVariant, fontSize: 13, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+  adjustLabel: { color: darkTheme.colors.onSurfaceVariant, fontSize: 13 },
   segmentedButtons: {
     marginBottom: 12,
   },
@@ -769,27 +786,32 @@ const styles = StyleSheet.create({
     backgroundColor: darkTheme.colors.surface,
     width: '100%',
     marginBottom: 16,
-    height: 260,
+    minHeight: 220,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: darkTheme.colors.outlineVariant,
   },
   timerContent: {
-    height: 260,
+    minHeight: 220,
+    paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   metronomeContent: {
-    height: 260,
+    minHeight: 220,
+    paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modeOptions: {
-    height: 88,
+    minHeight: 88,
     width: '100%',
     justifyContent: 'center',
     marginBottom: 8,
   },
   timerDisplay: {
     fontSize: 72,
-    fontWeight: '200',
+    fontWeight: '600',
     color: darkTheme.colors.primary,
     fontVariant: ['tabular-nums'],
   },
@@ -807,7 +829,7 @@ const styles = StyleSheet.create({
   },
   recordButtonLabel: {
     fontSize: 10,
-    color: '#94a3b8',
+    color: darkTheme.colors.onSurfaceVariant,
     marginTop: -4,
   },
   metronomeLinkHint: {
@@ -879,6 +901,7 @@ const styles = StyleSheet.create({
   },
   countdownRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 4,
     width: '100%',
@@ -902,8 +925,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 16,
-    marginTop: 8,
     width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: darkTheme.colors.outlineVariant,
   },
   mainButton: {
     flex: 1,

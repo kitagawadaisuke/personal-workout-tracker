@@ -15,6 +15,15 @@ const getTodayDate = () => {
 
 const createEmptyEntry = (): SetEntry => ({ reps: 0 });
 
+const moveExerciseInList = (exercises: Exercise[], exerciseId: string, direction: -1 | 1): Exercise[] => {
+  const index = exercises.findIndex((exercise) => exercise.id === exerciseId);
+  const destination = index + direction;
+  if (index < 0 || destination < 0 || destination >= exercises.length) return exercises;
+  const reordered = [...exercises];
+  [reordered[index], reordered[destination]] = [reordered[destination], reordered[index]];
+  return reordered;
+};
+
 interface WorkoutState {
   workouts: DailyWorkout[];
   timerSettings: TimerSettings;
@@ -25,11 +34,14 @@ interface WorkoutState {
   customExercises: CustomExerciseType[];
   templates: WorkoutTemplate[];
   hiddenBuiltinExercises: string[];
+  exercisePickerOrder: string[];
+  exercisePickerSort: 'frequency' | 'custom';
 
   // Actions
   setSelectedDate: (date: string) => void;
-  addExercise: (type: ExerciseType) => void;
+  addExercise: (type: ExerciseType) => string;
   removeExercise: (exerciseId: string) => void;
+  moveExercise: (exerciseId: string, direction: -1 | 1) => void;
   addSet: (exerciseId: string) => void;
   removeSet: (exerciseId: string, setIndex: number) => void;
   copySet: (exerciseId: string, setIndex: number) => void;
@@ -51,7 +63,7 @@ interface WorkoutState {
   getWorkoutByDate: (date: string) => DailyWorkout | undefined;
   getSelectedWorkoutDurationSeconds: () => number;
   getAllWorkouts: () => DailyWorkout[];
-  addCustomExercise: (exercise: Omit<CustomExerciseType, 'id'>) => void;
+  addCustomExercise: (exercise: Omit<CustomExerciseType, 'id'>) => string;
   removeCustomExercise: (id: string) => void;
   getCustomExercise: (id: string) => CustomExerciseType | undefined;
   addTimerRecord: (record: Omit<TimerRecord, 'timestamp'>) => void;
@@ -65,6 +77,7 @@ interface WorkoutState {
   renameTemplate: (id: string, name: string) => void;
   addExerciseToTemplate: (templateId: string, exerciseType: ExerciseType) => void;
   removeExerciseFromTemplate: (templateId: string, exerciseId: string) => void;
+  moveExerciseInTemplate: (templateId: string, exerciseId: string, direction: -1 | 1) => void;
   updateTemplateEntryReps: (templateId: string, exerciseId: string, setIndex: number, entryIndex: number, reps: number) => void;
   updateTemplateEntryWeight: (templateId: string, exerciseId: string, setIndex: number, entryIndex: number, weight: number) => void;
   updateTemplateEntryVariation: (templateId: string, exerciseId: string, setIndex: number, entryIndex: number, variation: string) => void;
@@ -76,6 +89,8 @@ interface WorkoutState {
   applyTemplate: (id: string) => void;
   hideBuiltinExercise: (type: string) => void;
   showBuiltinExercise: (type: string) => void;
+  setExercisePickerSort: (sort: 'frequency' | 'custom') => void;
+  setExercisePickerOrder: (order: string[]) => void;
 }
 
 // ヘルパー: 今日のエクササイズのセットのエントリを更新
@@ -158,6 +173,8 @@ export const useWorkoutStore = create<WorkoutState>()(
       customExercises: [],
       templates: [],
       hiddenBuiltinExercises: [],
+      exercisePickerOrder: [],
+      exercisePickerSort: 'frequency',
 
       setSelectedDate: (date: string) => {
         set({ selectedDate: date });
@@ -201,6 +218,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             };
           }
         });
+        return newExercise.id;
       },
 
       removeExercise: (exerciseId: string) => {
@@ -211,6 +229,15 @@ export const useWorkoutStore = create<WorkoutState>()(
               ? { ...w, exercises: w.exercises.filter((e) => e.id !== exerciseId) }
               : w
           ).filter((w) => w.exercises.length > 0 || (w.durationSeconds || 0) > 0),
+        }));
+      },
+
+      moveExercise: (exerciseId: string, direction: -1 | 1) => {
+        const selectedDate = get().selectedDate;
+        set((state) => ({
+          workouts: state.workouts.map((workout) => workout.date === selectedDate
+            ? { ...workout, exercises: moveExerciseInList(workout.exercises, exerciseId, direction) }
+            : workout),
         }));
       },
 
@@ -537,11 +564,13 @@ export const useWorkoutStore = create<WorkoutState>()(
         set((state) => ({
           customExercises: [...state.customExercises, newExercise],
         }));
+        return newExercise.id;
       },
 
       removeCustomExercise: (id: string) => {
         set((state) => ({
           customExercises: state.customExercises.filter((e) => e.id !== id),
+          exercisePickerOrder: state.exercisePickerOrder.filter((type) => type !== id),
         }));
       },
 
@@ -738,6 +767,14 @@ export const useWorkoutStore = create<WorkoutState>()(
               ? { ...t, exercises: t.exercises.filter((e) => e.id !== exerciseId) }
               : t
           ),
+        }));
+      },
+
+      moveExerciseInTemplate: (templateId: string, exerciseId: string, direction: -1 | 1) => {
+        set((state) => ({
+          templates: state.templates.map((template) => template.id === templateId
+            ? { ...template, exercises: moveExerciseInList(template.exercises, exerciseId, direction) }
+            : template),
         }));
       },
 
@@ -970,6 +1007,8 @@ export const useWorkoutStore = create<WorkoutState>()(
           hiddenBuiltinExercises: state.hiddenBuiltinExercises.filter((t) => t !== type),
         }));
       },
+      setExercisePickerSort: (sort) => set({ exercisePickerSort: sort }),
+      setExercisePickerOrder: (order) => set({ exercisePickerOrder: order, exercisePickerSort: 'custom' }),
     }),
     {
       name: 'workout-storage',

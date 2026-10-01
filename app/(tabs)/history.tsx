@@ -1,15 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
-import { Text, Card } from 'react-native-paper';
+import { Text, Card, Button } from 'react-native-paper';
+import { useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWorkoutStore } from '@/stores/workoutStore';
 import { darkTheme, calendarTheme, colors } from '@/constants/theme';
 import { EXERCISE_ICONS } from '@/types/workout';
+import MonthlyStepsCard from '@/components/MonthlyStepsCard';
 
 type MarkedDates = {
   [key: string]: {
     dots?: Array<{ key: string; color: string }>;
+    marked?: boolean;
     selected?: boolean;
     selectedColor?: string;
   };
@@ -17,7 +20,11 @@ type MarkedDates = {
 
 export default function HistoryScreen() {
   const { getAllWorkouts, getWorkoutByDate, customExercises, removeTimerRecord, removeWorkoutDuration } = useWorkoutStore();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const selectedDate = useWorkoutStore((state) => state.selectedDate);
+  const setSelectedDate = useWorkoutStore((state) => state.setSelectedDate);
+  const router = useRouter();
+  const [visibleMonth, setVisibleMonth] = useState(selectedDate.slice(0, 7));
+  useEffect(() => { setVisibleMonth(selectedDate.slice(0, 7)); }, [selectedDate]);
 
   const handleDeleteWorkoutDuration = (date: string) => {
     Alert.alert(
@@ -60,8 +67,10 @@ export default function HistoryScreen() {
         color: color,
       }));
 
+      const hasRecord = workout.exercises.length > 0 || (workout.durationSeconds ?? 0) > 0 || (workout.timerRecords?.length ?? 0) > 0;
       marks[workout.date] = {
-        dots,
+        marked: hasRecord,
+        dots: dots.length > 0 ? dots.slice(0, 3) : hasRecord ? [{ key: 'timer', color: darkTheme.colors.primary }] : [],
       };
     });
 
@@ -69,7 +78,7 @@ export default function HistoryScreen() {
       marks[selectedDate] = {
         ...marks[selectedDate],
         selected: true,
-        selectedColor: '#334155',
+        selectedColor: darkTheme.colors.primaryContainer,
       };
     }
 
@@ -97,8 +106,15 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.pageContent}>
+      <Text style={styles.introText}>1ヶ月の活動とトレーニングを振り返る</Text>
+      <MonthlyStepsCard month={visibleMonth} onMonthChange={setVisibleMonth} />
       <Calendar
+        monthFormat="yyyy年 M月"
+        key={visibleMonth}
+        current={`${visibleMonth}-01`}
+        onMonthChange={(date: DateData) => setVisibleMonth(date.dateString.slice(0, 7))}
+        firstDay={1}
         theme={calendarTheme}
         markedDates={markedDates}
         markingType="multi-dot"
@@ -107,7 +123,8 @@ export default function HistoryScreen() {
         style={styles.calendar}
       />
 
-      <ScrollView style={styles.detailsContainer} contentContainerStyle={styles.detailsContent}>
+      <Text style={styles.calendarHint}>● 記録あり · 日付をタップして種目とセットを確認</Text>
+      <View style={styles.detailsContent}>
         {selectedDate && (
           <Text style={styles.selectedDateText}>
             {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('ja-JP', {
@@ -118,6 +135,11 @@ export default function HistoryScreen() {
             })}
           </Text>
         )}
+        {selectedDate ? (
+          <Button mode="outlined" icon={selectedWorkout ? 'pencil-outline' : 'plus'} style={styles.editButton} onPress={() => { router.navigate('/'); }}>
+            {selectedWorkout ? 'この日の記録を編集' : 'この日にトレーニングを記録'}
+          </Button>
+        ) : null}
 
         {selectedWorkout ? (
           <>
@@ -211,7 +233,7 @@ export default function HistoryScreen() {
                 size={48}
                 color={darkTheme.colors.onSurfaceVariant}
               />
-              <Text style={styles.emptyText}>この日の記録はありません</Text>
+              <Text style={styles.emptyText}>この日の筋トレ記録はありません</Text>
             </Card.Content>
           </Card>
         ) : (
@@ -226,26 +248,31 @@ export default function HistoryScreen() {
             </Card.Content>
           </Card>
         )}
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  calendarHint: { color: darkTheme.colors.onSurfaceVariant, fontSize: 12, marginTop: 12 },
+  pageContent: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20 },
+  introText: { fontSize: 14, color: darkTheme.colors.onSurfaceVariant, marginBottom: 20 },
+  editButton: { marginBottom: 16 },
   container: {
     flex: 1,
     backgroundColor: darkTheme.colors.background,
   },
   calendar: {
-    borderBottomWidth: 1,
-    borderBottomColor: darkTheme.colors.outline,
+    borderRadius: 20,
+    padding: 8,
+    overflow: 'hidden',
   },
   detailsContainer: {
     flex: 1,
   },
   detailsContent: {
-    padding: 16,
-    paddingBottom: 120,
+    paddingTop: 24,
+    paddingBottom: 24,
   },
   selectedDateText: {
     fontSize: 16,
@@ -289,6 +316,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   exerciseHeaderLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
